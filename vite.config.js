@@ -7,6 +7,18 @@ import * as path from 'path'
 
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/dev': {
+        target: 'http://10.212.190.80:7000/api/',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/dev/, ''),
+    }
+    }
+  },
+  // define: {
+  //   'process.env': {}
+  // },
   plugins: [
     vue(),
     // Element Plus的配置
