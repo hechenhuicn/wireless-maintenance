@@ -12,6 +12,8 @@ bus.on('changeExpand', newVal => {
     }
 )
 
+// const imgUrl = new URL('../assets/images/logomenu.png',import.meta.url).href;
+
 </script>
 
 <template>
@@ -27,8 +29,9 @@ bus.on('changeExpand', newVal => {
         :collapse-transition="false">
         <div class="logo-item">
             <div>
-                <span class="logo-name-big" v-show="!isCollapse">LOGO</span>
-                <span class="logo-name-small" v-show="isCollapse">LOGO</span>
+                <span class="logo-name-big" v-show="!isCollapse">网优维护</span>
+                <span class="logo-name-small" v-show="isCollapse">网优维护</span>
+                <!-- <el-avatar :src="imgUrl" size="medium"></el-avatar> -->
             </div>
         </div>
         <el-menu-item index="/">
@@ -39,11 +42,13 @@ bus.on('changeExpand', newVal => {
             <el-icon><MapLocation /></el-icon>
             <template #title>告警GIS</template>
         </el-menu-item>
-        <el-menu-item index="/report">
-            <el-icon><Memo /></el-icon>
-            <template #title>数据健康度</template>
-        </el-menu-item>
-        
+        <el-sub-menu index="/report">
+            <template #title>
+                <el-icon><Memo /></el-icon>
+                <span>数据健康度</span>
+            </template>
+            <el-menu-item index="/report/material">物料核查</el-menu-item>
+        </el-sub-menu>
     </el-menu>
 </template>
 

@@ -1,7 +1,7 @@
 <script setup>
 
 // 设置title
-document.title = '无线维护';
+document.title = '网优维护';
 // 主色对应的其他颜色
 const mix = (color1, color2, weight) => {
   weight = Math.max(Math.min(Number(weight), 1), 0)
@@ -60,5 +60,9 @@ body {
 /* login页面form内容居中 */
 .form-container .el-form-item .el-form-item__content{
     justify-content: center;
+}
+/* home,map,report页的内容容器 */
+.main-container{
+    height: 100vh;
 }
 </style>

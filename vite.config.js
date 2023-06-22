@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/dev': {
-        target: 'http://10.212.190.80:7000/api/',
+        target: 'http://10.212.190.80:7000/',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/dev/, ''),
     }
@@ -27,7 +27,7 @@ export default defineConfig({
     }),
     Components({
       resolvers: [ElementPlusResolver()],
-    }),
+    })
   ],
   // 路劲配置，src简写为@
   resolve: {

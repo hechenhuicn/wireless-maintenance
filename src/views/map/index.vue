@@ -1,7 +1,7 @@
 <script setup>
 import Menu from "@/components/Menu.vue"
 import Header from "@/components/Header.vue"
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { bus } from 'vue3-eventbus'
 import 'ol/ol.css';
 import {Map, View, Feature, Overlay} from 'ol';
@@ -14,8 +14,10 @@ import {Fill, Stroke, Style, Circle} from 'ol/style';
 import GeoJSON from 'ol/format/GeoJSON';
 // import LayerGroup from 'ol/layer/Group';
 import { getAlarmAndProperty, getGIS, exportGISExcel } from '@/api'
+import { ElMessage } from 'element-plus'
 
 let isCollapse = ref(false);//菜单开合标记
+
 let searchForm = reactive({
   layerType: '故障告警',//图层类别
   alarmType: '',//告警类别
@@ -28,20 +30,47 @@ let propertyTypeArr = ref([]);//属性类型，不能用reactive，大概是响�
 let alarmTypedisabled = ref(false);
 
 let map = reactive({}); // 存放地图实例
-let geoJSON = reactive({});//告警or物理站marker的原始geoJSON
+// let geoJSON = reactive({});//告警or物理站marker的原始geoJSON
 let vectorLayer = reactive({}); // 标记点的layer
 let shopPopup = ref(false);//popup控制标记
 
+let loading = ref(false);//map loading标记，true是显示
+let exportLoading = ref(false);//导出loading标记，true是显示
+let searchFormRef = ref(null);//searchForm元素
+
+const { proxy } = getCurrentInstance();
+
+// 验证searchForm.attribute的函数
+const validateAttr = (rule, value, callback) => {
+    // value是proxy对象，判断为空对象的方法是获取对象内key组成的数组，并判断数组是空数组
+    if ((searchForm.layerType == '物理站') && Object.keys(value).length == 0) {
+      callback(new Error('物理站查询属性不能为空'));
+    } else {
+      callback();
+    }
+  }
+// search form规则
+let rules = reactive({
+    attribute: [{ validator: validateAttr, trigger: 'blur' }],
+});
+
 
 onMounted(() => {
+  // 监听菜单开合变动
+  bus.on('changeExpand', changeStyle);
   getInitInfo();
   initMap();
 })
-// 监听菜单开合变动
-bus.on('changeExpand', newVal => {
-        isCollapse.value = newVal;
-    }
-)
+// 在组件卸载之前移除监听
+onBeforeUnmount( () => {
+  bus.off('changeExpand', changeStyle);
+})
+// 菜单开合变动时候修改对应样式
+const changeStyle = (newVal) => {
+  isCollapse.value = newVal;
+}
+
+
 
 // 获取search form初始信息
 const getInitInfo = async () => {
@@ -58,71 +87,43 @@ const getInitInfo = async () => {
   }
   
 }
+
 // 查询
 const search = async () => {
-  // 请求新数据
-  let res = await getGIS(searchForm);
-  console.log('getGIS res',res)
-  if (res.status == 200) {
-    // 渲染marker图层
-    renderMap(res.data);
-  }
-
-
-  // 点——故障告警/物理站
-  // geoJSON = {
-  //   features: [
-  //     {
-  //       geometry: {
-  //           coordinates: [121.84059,29.89729],
-  //           type: 'Point'
-  //         },
-  //       properties: {
-  //         name: 'N746362宁波北仑丽晶酒店',
-  //         network: '4G',
-  //         alarm: '小区退服'
-  //       },
-  //       type: 'Feature'
-  //     },
-  //     {
-  //       geometry: {
-  //         coordinates: [121.844848,29.919004],
-  //         type: 'Point'
-  //       },
-  //       properties: {
-  //         name: 'N746127宁波北仑得润花园',
-  //         network: '4G',
-  //         alarm: '时钟告警'
-  //       },
-  //       type: 'Feature'
-  //     },
-  //     {
-  //       geometry: {
-  //         coordinates: [121.913671,29.765101],
-  //         type: 'Point'
-  //       },
-  //       properties: {
-  //         name: 'H946132宁波北仑春晓明月湖南FDD',
-  //         network: '4G',
-  //         alarm: '驻波告警'
-  //       },
-  //       type: 'Feature'
-  //     }
-  //   ],
-  //   type: 'FeatureCollection'
-  // }
-  // 渲染marker图层
-  // renderMap(geoJSON);
+  proxy.$refs.searchFormRef.validate(async (valid) => {
+      try {
+        if (valid) {
+          loading.value = true;
+          // 请求新数据
+          let res = await getGIS(searchForm);
+          // console.log('getGIS res',res)
+          if (res.status == 200) {
+            // 渲染marker图层
+            renderMap(res.data);
+          }
+          loading.value = false;
+        }
+      } catch(e) {
+        ElMessage.error(e);
+      }
+  });
 }
-// 导出
-const leadingout = () => {
 
+
+
+// 导出
+const leadingout = async () => {
+  exportLoading.value = true;
+  await exportGISExcel(searchForm);
+  exportLoading.value = false;
 }
 // 图层类别值变更监听
 const layerTypeChange = (val) => {
   // console.log(val)
   switch(val) {
     case '故障告警': 
+      // 清空之前可能的错误提示
+      proxy.$refs.searchFormRef.clearValidate();
       alarmTypeArr.value = alarmAndPropertyObj.fault_alarm;
       if (alarmTypeArr.value.length != 0) {
         // 如数组非空，让alarmType设成新类型中第一个值
@@ -134,6 +135,8 @@ const layerTypeChange = (val) => {
       alarmTypedisabled.value=false;
       break;
     case '性能告警': 
+      // 清空之前可能的错误提示
+      proxy.$refs.searchFormRef.clearValidate();
       alarmTypeArr.value = alarmAndPropertyObj.performance_alarm;
       if (alarmTypeArr.value.length != 0) {
         searchForm.alarmType= alarmTypeArr.value[0];
@@ -184,9 +187,6 @@ const renderMap = (geoJSON) =>{
   // 删除原maker layer
   map.removeLayer(vectorLayer);
   let vectorSource = new VectorSource({
-    // features: [new Feature({
-    //   geometry: new Point([121.84059,29.89729])
-    // })]
     features: (new GeoJSON()).readFeatures(geoJSON)
   });
   vectorLayer = new VectorLayer({
@@ -205,8 +205,8 @@ const styleFunction = (feature) => {
   switch(geo) {
     case 'Polygon':
       style = new Style({
-        stroke: new Stroke({ color: '#ffcc33', width: 2 }),
-        fill: new Fill({ color: '#aa3300' }) 
+        stroke: new Stroke({ color: '#ff9900', width: 2 }),
+        fill: new Fill({ color: '#ff6200' }) 
       });
       break;
     case 'Point':
@@ -225,6 +225,7 @@ const styleFunction = (feature) => {
 
 // 点击图形出现popup
 let addPopup = () => {
+  let layerType = searchForm.layerType;//分图层显示不同popup
   // 使用变量存储弹窗所需的 DOM 对象
   let container = document.getElementById("popup");
   let closer = document.getElementById("popup-closer");
@@ -255,20 +256,40 @@ let addPopup = () => {
         e.pixel,
         (feature) => feature
       );
-      console.log('popup feature',feature);
+      // console.log('popup feature',feature);
       if (feature) {
         shopPopup.value = true;
-        content.innerHTML=`<ul style="text-align:left;">
-                            <li class="popup-li"><span class="li-title">告警标题：</span><span>${feature.get('告警标题')}</span></li>
-                            <li class="popup-li"><span class="li-title">触发时间：</span><span>${feature.get('触发时间')}</span></li>
-                            <li class="popup-li"><span class="li-title">小区名：</span><span>${feature.get('站点名称')}</span></li>
-                            <li class="popup-li"><span class="li-title">网络制式：</span><span>${feature.get('net_type')}</span></li>
-                            <li class="popup-li"><span class="li-title">CGI：</span><span>${feature.get('CGI')}</span></li>
-                            <li class="popup-li"><span class="li-title">区县：</span><span>${feature.get('区县')}</span></li>
-                            <li class="popup-li"><span class="li-title">属性：</span><span>${feature.get('vip_lev')}</span></li>
-                          </ul>`;
-        
-        
+        switch(layerType) {
+          case '故障告警':
+            content.innerHTML=`<ul style="text-align:left;">
+                              <li class="popup-li"><span class="li-title">告警标题：</span><span>${feature.get('alarm_tile')}</span></li>
+                              <li class="popup-li"><span class="li-title">触发时间：</span><span>${feature.get('trigger_time')}</span></li>
+                              <li class="popup-li"><span class="li-title">站名：</span><span>${feature.get('site_name')}</span></li>
+                              <li class="popup-li"><span class="li-title">eNBid/gNBid：</span><span>${feature.get('enbid')}</span></li>
+                              <li class="popup-li"><span class="li-title">网络制式：</span><span>${feature.get('net_type')}</span></li>
+                              <li class="popup-li"><span class="li-title">区县：</span><span>${feature.get('area')}</span></li>
+                              <li class="popup-li"><span class="li-title">属性：</span><span>${feature.get('vip_lev')}</span></li>
+                            </ul>`;
+            break;
+          case '性能告警':
+            content.innerHTML=`<ul style="text-align:left;">
+                              <li class="popup-li"><span class="li-title">告警标题：</span><span>${feature.get('alarm_tile')}</span></li>
+                              <li class="popup-li"><span class="li-title">触发时间：</span><span>${feature.get('trigger_time')}</span></li>
+                              <li class="popup-li"><span class="li-title">小区名：</span><span>${feature.get('site_name')}</span></li>
+                              <li class="popup-li"><span class="li-title">网络制式：</span><span>${feature.get('net_type')}</span></li>
+                              <li class="popup-li"><span class="li-title">CGI：</span><span>${feature.get('CGI')}</span></li>
+                              <li class="popup-li"><span class="li-title">区县：</span><span>${feature.get('area')}</span></li>
+                              <li class="popup-li"><span class="li-title">属性：</span><span>${feature.get('vip_lev')}</span></li>
+                            </ul>`;
+            break;
+          case '物理站':
+            content.innerHTML=`<ul style="text-align:left;">
+                              <li class="popup-li"><span class="li-title">物理站名：</span><span>${feature.get('phyisical_site')}</span></li>
+                              <li class="popup-li"><span class="li-title">包含逻辑站：</span><span>${feature.get('site')}</span></li>
+                              <li class="popup-li"><span class="li-title">属性：</span><span>${feature.get('vip_lev')}</span></li>
+                            </ul>`;
+            break;
+        }
         overlay.setPosition(e.coordinate); //把 overlay 显示到指定的 x,y坐标
       } else {
         shopPopup.value = false;
@@ -285,9 +306,9 @@ let addPopup = () => {
     </el-aside>
     <el-container class="main-container" direction="vertical">
       <Header/>
-      <el-main>
+      <el-main v-loading="exportLoading">
         <!-- 查询form -->
-        <el-form :inline="true" :model="searchForm" class="search-form">
+        <el-form :inline="true" :model="searchForm" class="search-form" :rules="rules" ref="searchFormRef">
           <el-form-item label="图层类别">
             <el-select v-model="searchForm.layerType" @change="layerTypeChange">
               <el-option v-for="layer in layerTypeArr" :key="layer" :label="layer" :value="layer" />
@@ -295,13 +316,11 @@ let addPopup = () => {
           </el-form-item>
           <el-form-item label="告警类别">
             <el-select v-model="searchForm.alarmType" :disabled="alarmTypedisabled">
-              <!-- 要后端反馈 -->
               <el-option v-for="alarm in alarmTypeArr" :key="alarm" :label="alarm" :value="alarm" />
             </el-select>
           </el-form-item>
-          <el-form-item label="属性">
+          <el-form-item label="属性" prop="attribute">
             <el-select v-model="searchForm.attribute" placeholder="请选择" multiple collapse-tags collapse-tags-tooltip>
-              <!-- 要后端反馈 -->
               <el-option v-for="property in propertyTypeArr" :key="property" :label="property" :value="property" />
             </el-select>
           </el-form-item>
@@ -312,7 +331,7 @@ let addPopup = () => {
         </el-form>
 
         <!-- map -->
-        <div id="map"></div>
+        <div id="map" v-loading="loading"></div>
 
         <!-- popup -->
         <div id="popup" class="ol-popup" v-show="shopPopup">

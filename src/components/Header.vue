@@ -1,12 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Fold, Expand, ArrowDown } from '@element-plus/icons-vue'
 import { bus } from 'vue3-eventbus'
 
 let isCollapse = ref(false);//菜单开合标记，true折叠，false展开
 let nameHover = ref(false);//用户名是否hover标记
 let liHover = ref(false);//popover是否hover标记
-let username = ref('wangyou');//用户名
+let username = ref('');//用户名
 
 
 // 改变menu开合状态
@@ -14,9 +14,15 @@ const change = () => {
     isCollapse.value = !isCollapse.value;
     bus.emit('changeExpand', isCollapse.value)
 }
+onMounted(() => {
+    let nb_wy_wireless_mes = localStorage.getItem('nb_wy_wireless_mes');
+    if(nb_wy_wireless_mes) {
+        username.value = JSON.parse(nb_wy_wireless_mes).username;
+    }
+})
 // 用户注销
 const exit = () => {
-
+    localStorage.removeItem('nb_wy_wireless_mes');
 }
 </script>
 

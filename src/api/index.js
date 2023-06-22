@@ -8,8 +8,8 @@ axios.defaults.baseURL = import.meta.env.VITE_APP_SERVER_API_PATH;
 // 请求拦截器
 axios.interceptors.request.use(function (config) {
     // 带上token
-    if (localStorage.wireless_maintenance_mes) {
-        config.headers.Authorization = JSON.parse(localStorage.getItem('wireless_maintenance_mes')).token
+    if (localStorage.nb_wy_wireless_mes) {
+        config.headers.Authorization = 'JWT '+JSON.parse(localStorage.getItem('nb_wy_wireless_mes')).token
     }
     return config;
   }, function (error) {
@@ -18,6 +18,25 @@ axios.interceptors.request.use(function (config) {
 
 // 响应拦截器
 axios.interceptors.response.use(function (response) {
+  // 处理excel文件
+  if (response.headers && response.headers['content-type'] === 'text/csv') {
+    // console.log('进入处理excel文件','response',response)
+    const content = response.data
+    const blob = new Blob([content]);
+    let contentDisposition = response.headers['content-disposition'];
+    let fileName = contentDisposition.substring(contentDisposition.indexOf('filename=') + 9, contentDisposition.length);
+    fileName = window.decodeURI(fileName, "UTF-8");//中文名要乱码，需要指定下编码
+    const elink = document.createElement('a')
+    // replace是为了下载后自动会给filename加下划线，因a标签download属性是双层双引号导致，此处去掉一层双引号
+    elink.download = fileName.replace(new RegExp('"', 'g'), '')
+    elink.style.display = 'none'
+    elink.href = URL.createObjectURL(blob)
+    document.body.appendChild(elink)
+    elink.click()
+    URL.revokeObjectURL(elink.href) // 释放URL 对象
+    document.body.removeChild(elink)
+    return
+  }
     return response;
   }, function (error) {
     switch(error.response.status) {
@@ -46,7 +65,7 @@ export function login(data) {
 export function getAlarmAndProperty() {
     return axios({
         method: 'get',
-        url: '/classification_details/'
+        url: '/api/classification_details/'
     });
 }
 
@@ -55,14 +74,58 @@ export function getGIS(searchForm) {
   let {layerType, alarmType, attribute} = searchForm;
     return axios({
         method: 'get',
-        url: `/layer_detail/?layer_style=${layerType}&alarm_type=${alarmType}&attribute=${attribute}`
+        url: `/api/layer_detail/?layer_style=${layerType}&alarm_type=${alarmType}&attribute=${attribute}`
     });
 }
 
 // 导出GIS对应的EXCEL
-export function exportGISExcel() {
+export function exportGISExcel(searchForm) {
+  let {layerType, alarmType, attribute} = searchForm;
     return axios({
         method: 'get',
-        url: '/other/'
+        url: `/api/layer_download/?layer_style=${layerType}&alarm_type=${alarmType}&attribute=${attribute}`,
+        responseType: 'blob'
     });
+}
+
+// 请求首页工作台数据
+export function getWorkbench() {
+  return axios({
+      method: 'get',
+      url: '/api/screen_district/'
+  });
+}
+
+// 获取本地宁波地图
+export function getNBGeojson() {
+  return axios({
+      method: 'get',
+      // 打包前要修改这个baseURL
+      // baseURL: 'http://localhost:5173',
+      url: '/json/ningbo.json'
+  });
+}
+// 导出首页工作台的EXCEL
+export function exportWorkbenchExcel(exportType) {
+    return axios({
+        method: 'get',
+        url: `/api/ScreenDetail/?alarm_order=${exportType}`,
+        responseType: 'blob'
+    });
+}
+// 获取物料对比数据
+export function getMeteral(page, page_size, reportSearchForm) {
+  let { networkType } = reportSearchForm
+  return axios({
+      method: 'get',
+      url: `/api/material_detail/?page=${page}&page_size=${page_size}&network_type=${networkType}`
+  });
+}
+// 导出物料对比EXCEL
+export function exportMeteral(network_type) {
+  return axios({
+      method: 'get',
+      url: `/api/material_download/?network_type=${network_type}`,
+      responseType: 'blob'
+  });
 }
