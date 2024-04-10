@@ -23,9 +23,13 @@ axios.interceptors.response.use(function (response) {
     // console.log('进入处理excel文件','response',response)
     const content = response.data
     const blob = new Blob([content]);
+    let time = new Date().toLocaleString( );
+    let fileName =  `export${time}.csv`;
     let contentDisposition = response.headers['content-disposition'];
-    let fileName = contentDisposition.substring(contentDisposition.indexOf('filename=') + 9, contentDisposition.length);
-    fileName = window.decodeURI(fileName, "UTF-8");//中文名要乱码，需要指定下编码
+    if (contentDisposition) {
+      let fileName = contentDisposition.substring(contentDisposition.indexOf('filename=') + 9, contentDisposition.length);
+      fileName = window.decodeURI(fileName, "UTF-8");//中文名要乱码，需要指定下编码
+    }
     const elink = document.createElement('a')
     // replace是为了下载后自动会给filename加下划线，因a标签download属性是双层双引号导致，此处去掉一层双引号
     elink.download = fileName.replace(new RegExp('"', 'g'), '')
@@ -101,7 +105,7 @@ export function getNBGeojson() {
   return axios({
       method: 'get',
       // 打包前要修改这个baseURL
-      // baseURL: 'http://localhost:5173',
+      baseURL: 'http://188.103.147.179:30131',
       url: '/json/ningbo.json'
   });
 }

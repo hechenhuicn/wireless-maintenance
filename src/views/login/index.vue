@@ -26,7 +26,7 @@ const submitForm = () => {
       try {
           if (valid) {
               let res = await login(loginForm);
-              // console.log('login res',res);
+              console.log('login res',res);
               if(res.status == 200) {
                 // 用户名、密码正确
                 let obj = {

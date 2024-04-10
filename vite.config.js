@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       '/dev': {
         target: 'http://10.212.190.80:7000/',
+        // target: 'http://188.103.147.179:30132/',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/dev/, ''),
     }
